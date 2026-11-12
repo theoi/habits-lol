@@ -134,12 +134,17 @@ export async function getLastFired(): Promise<Record<string, DayKey>> {
   return (row?.value as Record<string, DayKey> | undefined) ?? {};
 }
 
+/** All data for a backup. Check-ins whose habit no longer exists are left out. */
 export async function exportAll(): Promise<BackupData> {
-  return db.transaction('r', db.habits, db.checkIns, db.meta, async () => ({
-    settings: await getSettings(),
-    habits: await db.habits.orderBy('order').toArray(),
-    checkIns: await db.checkIns.toArray(),
-  }));
+  return db.transaction('r', db.habits, db.checkIns, db.meta, async () => {
+    const habits = await db.habits.orderBy('order').toArray();
+    const ids = new Set(habits.map((h) => h.id));
+    return {
+      settings: await getSettings(),
+      habits,
+      checkIns: (await db.checkIns.toArray()).filter((c) => ids.has(c.habitId)),
+    };
+  });
 }
 
 /** Replaces every habit, check-in, and setting with the given data in one transaction. */

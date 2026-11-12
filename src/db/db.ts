@@ -27,6 +27,15 @@ export class HabitsDB extends Dexie {
           h.icon = normalizeHabitIcon(h.icon);
         }),
     );
+    // An earlier release could save a check-in for a habit deleted in another
+    // tab. Such rows are unreachable and would make every backup unimportable.
+    this.version(3).upgrade(async (tx) => {
+      const ids = new Set(await tx.table<Habit, string>('habits').toCollection().primaryKeys());
+      await tx
+        .table<CheckIn>('checkIns')
+        .filter((c) => !ids.has(c.habitId))
+        .delete();
+    });
   }
 }
 

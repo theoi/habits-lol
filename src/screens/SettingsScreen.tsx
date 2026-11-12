@@ -8,7 +8,19 @@ import { notificationPermission, requestNotifications } from '../reminders/notif
 import { useData } from '../ui/data';
 import { useToast } from '../ui/toast';
 
-type ImportState = { kind: 'confirm'; data: BackupData } | { kind: 'error'; message: string } | null;
+type ImportState =
+  | { kind: 'confirm'; data: BackupData; skipped: number }
+  | { kind: 'error'; message: string }
+  | null;
+
+function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
+}
+
+function skippedText(n: number, tense: 'future' | 'past'): string {
+  const verb = tense === 'future' ? 'will be' : n === 1 ? 'was' : 'were';
+  return `${plural(n, 'entry', 'entries')} for deleted habits ${verb} skipped.`;
+}
 
 export function SettingsScreen() {
   const { settings: saved, habits, checkIns } = useData();
@@ -47,9 +59,17 @@ export function SettingsScreen() {
     toast({ message: 'Backup saved' });
   };
 
+  // A dialog's close event arrives after the dialog closes; only clear the
+  // state it was showing, not one for a file chosen in the meantime.
+  const closeImport = (shown: ImportState) => () => setImporting((current) => (current === shown ? null : current));
+
   const readImport = async (file: File) => {
     const result = parseBackup(await file.text());
-    setImporting(result.ok ? { kind: 'confirm', data: result.data } : { kind: 'error', message: result.error });
+    setImporting(
+      result.ok
+        ? { kind: 'confirm', data: result.data, skipped: result.skippedCheckIns }
+        : { kind: 'error', message: result.error },
+    );
   };
 
   return (
@@ -163,7 +183,8 @@ export function SettingsScreen() {
           />
         </div>
         <p className="muted small">
-          {habits.length} habits and {checkIns.length} check-ins on this device. Importing replaces all of them.
+          {plural(habits.length, 'habit')} and {plural(checkIns.length, 'check-in')} on this device. Importing replaces
+          all of them.
         </p>
       </section>
 
@@ -191,29 +212,36 @@ export function SettingsScreen() {
           danger
           onConfirm={async () => {
             await replaceAll(importing.data);
-            toast({ message: 'Backup imported' });
+            toast({
+              message: importing.skipped ? `Backup imported. ${skippedText(importing.skipped, 'past')}` : 'Backup imported',
+            });
           }}
-          onClose={() => setImporting(null)}
+          onClose={closeImport(importing)}
         >
           <dl className="compare">
             <div>
               <dt>Backup</dt>
               <dd>
-                {importing.data.habits.length} habits, {importing.data.checkIns.length} check-ins
+                {plural(importing.data.habits.length, 'habit')}, {plural(importing.data.checkIns.length, 'check-in')}
               </dd>
             </div>
             <div>
               <dt>On this device</dt>
               <dd>
-                {habits.length} habits, {checkIns.length} check-ins
+                {plural(habits.length, 'habit')}, {plural(checkIns.length, 'check-in')}
               </dd>
             </div>
           </dl>
+          {importing.skipped > 0 && (
+            <p className="small" data-testid="import-skipped">
+              {skippedText(importing.skipped, 'future')} They belong to habits that are not in the backup.
+            </p>
+          )}
           <p className="muted small">This cannot be undone. Export first if you want to keep a copy.</p>
         </ConfirmDialog>
       )}
       {importing?.kind === 'error' && (
-        <ConfirmDialog title="Couldn’t import this file" onClose={() => setImporting(null)}>
+        <ConfirmDialog title="Couldn’t import this file" onClose={closeImport(importing)}>
           <p>{importing.message}</p>
           <p className="muted small">Nothing was changed.</p>
         </ConfirmDialog>

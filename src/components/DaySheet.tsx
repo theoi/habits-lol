@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { setCheckIn } from '../db/repo';
-import { checkCount, LIMITS, parseWhole } from '../lib/limits';
+import { checkCount, checkNote, LIMITS, parseWhole } from '../lib/limits';
 import { goalTarget } from '../lib/schedule';
 import type { DayKey, Habit } from '../lib/types';
 import { formatDay } from '../ui/format';
@@ -28,6 +28,7 @@ export function DaySheet({
   const countError = habit.goal.kind === 'count' ? checkCount(value) : null;
   const setValue = (n: number) => setCountText(String(n));
   const [text, setText] = useState(note ?? '');
+  const noteError = checkNote(text);
   const titleId = useId();
   const target = goalTarget(habit.goal);
 
@@ -37,7 +38,7 @@ export function DaySheet({
   }, []);
 
   const save = async () => {
-    if (value === null || countError) return;
+    if (value === null || countError || noteError) return;
     await setCheckIn(habit.id, day, { count: value, note: text });
     onClose();
   };
@@ -54,6 +55,7 @@ export function DaySheet({
     >
       <form
         className="sheet-body"
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
           void save();
@@ -138,14 +140,21 @@ export function DaySheet({
             maxLength={LIMITS.noteLength}
             placeholder="How did it go?"
             onChange={(e) => setText(e.target.value)}
+            aria-invalid={noteError !== null}
+            aria-describedby={noteError ? 'note-error' : undefined}
           />
         </label>
+        {noteError && (
+          <p id="note-error" className="field-error" role="alert">
+            {noteError}
+          </p>
+        )}
 
         <div className="sheet-actions">
           <button type="button" className="btn" onClick={() => ref.current?.close()}>
             Cancel
           </button>
-          <button type="submit" className="btn primary" disabled={countError !== null}>
+          <button type="submit" className="btn primary" disabled={countError !== null || noteError !== null}>
             Save
           </button>
         </div>

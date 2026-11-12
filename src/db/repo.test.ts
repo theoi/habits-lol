@@ -133,4 +133,37 @@ describe('schema upgrade', () => {
     upgraded.close();
     await Dexie.delete('upgrade-test');
   });
+
+  it('deletes check-ins whose habit no longer exists, keeping the rest', async () => {
+    const v2 = new Dexie('orphan-test');
+    v2.version(1).stores({ habits: 'id, order', checkIns: '[habitId+day], habitId, day', meta: 'key' });
+    v2.version(2).stores({});
+    const kept = [
+      { habitId: 'a', day: '2026-11-10', count: 1, updatedAt: '2026-11-10T20:00:00.000Z' },
+      { habitId: 'a', day: '2026-11-11', count: 0, note: 'note only', updatedAt: '2026-11-11T20:00:00.000Z' },
+    ];
+    await v2.table('habits').bulkAdd([{ id: 'a', name: 'Kept', icon: 'droplet', order: 0 }]);
+    await v2.table('checkIns').bulkAdd([
+      ...kept,
+      { habitId: 'gone', day: '2026-11-10', count: 3, note: 'saved after delete', updatedAt: '2026-11-10T21:00:00.000Z' },
+      { habitId: 'gone', day: '2026-11-11', count: 1, updatedAt: '2026-11-11T21:00:00.000Z' },
+    ]);
+    v2.close();
+
+    const upgraded = new HabitsDB('orphan-test');
+    expect(await upgraded.checkIns.toArray()).toEqual(kept);
+    expect(upgraded.verno).toBe(3);
+    upgraded.close();
+    await Dexie.delete('orphan-test');
+  });
+});
+
+describe('export', () => {
+  it('leaves out check-ins whose habit no longer exists', async () => {
+    const a = await createHabit(draft('A'));
+    await setCheckIn(a.id, '2026-11-10', { count: 1 });
+    await db.checkIns.put({ habitId: 'gone', day: '2026-11-10', count: 1, updatedAt: '2026-11-10T20:00:00.000Z' });
+    const data = await exportAll();
+    expect(data.checkIns.map((c) => c.habitId)).toEqual([a.id]);
+  });
 });

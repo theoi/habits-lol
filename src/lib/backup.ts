@@ -37,7 +37,14 @@ export function backupFileName(now: Date = new Date()): string {
   return `habits-backup-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}.json`;
 }
 
-export type ParseResult = { ok: true; data: BackupData } | { ok: false; error: string };
+export type ParseResult =
+  | {
+      ok: true;
+      data: BackupData;
+      /** Check-ins skipped because their habit is not in the file. */
+      skippedCheckIns: number;
+    }
+  | { ok: false; error: string };
 
 class Invalid extends Error {}
 
@@ -125,11 +132,14 @@ function habit(v: unknown, i: number): Habit {
   };
 }
 
-function checkIn(v: unknown, i: number, ids: Set<string>): CheckIn {
+/** Parses a check-in, or returns null for one whose habit is not in the file. */
+function checkIn(v: unknown, i: number, ids: Set<string>): CheckIn | null {
   const w = `checkIns[${i}]`;
   const o = obj(v, w);
   const habitId = str(o.habitId, `${w}.habitId`, { max: 100 });
-  if (!ids.has(habitId)) fail(`${w} refers to a habit that is not in the file`);
+  // Earlier releases could leave check-ins for deleted habits. They have no
+  // meaning without their habit, so they are skipped rather than failing the file.
+  if (!ids.has(habitId)) return null;
   if (!isDayKey(o.day)) fail(`${w}.day must be a YYYY-MM-DD date`);
   const out: CheckIn = {
     habitId,
@@ -141,7 +151,10 @@ function checkIn(v: unknown, i: number, ids: Set<string>): CheckIn {
   return out;
 }
 
-/** Validates a backup file's text. Never partially accepts a file. */
+/**
+ * Validates a backup file's text. Any invalid value rejects the whole file;
+ * the only rows left out are check-ins for habits not in the file.
+ */
 export function parseBackup(text: string): ParseResult {
   let raw: unknown;
   try {
@@ -162,12 +175,14 @@ export function parseBackup(text: string): ParseResult {
     const habits = o.habits.map(habit);
     const ids = new Set(habits.map((h) => h.id));
     if (ids.size !== habits.length) fail('Two habits share the same id');
-    const checkIns = o.checkIns.map((c, i) => checkIn(c, i, ids));
+    const parsed = o.checkIns.map((c, i) => checkIn(c, i, ids));
+    const checkIns = parsed.filter((c): c is CheckIn => c !== null);
     const keys = new Set(checkIns.map((c) => `${c.habitId}|${c.day}`));
     if (keys.size !== checkIns.length) fail('Two check-ins share the same habit and day');
     return {
       ok: true,
       data: { settings: { weekStartsOn: s.weekStartsOn, compact: s.compact ?? false }, habits, checkIns },
+      skippedCheckIns: parsed.length - checkIns.length,
     };
   } catch (e) {
     if (e instanceof Invalid) return { ok: false, error: `${e.message}.` };

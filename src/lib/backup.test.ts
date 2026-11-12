@@ -31,7 +31,7 @@ describe('backup', () => {
   it('round-trips all data without loss', () => {
     const text = JSON.stringify(makeBackup(data, new Date('2026-11-12T10:00:00Z')));
     const parsed = parseBackup(text);
-    expect(parsed).toEqual({ ok: true, data });
+    expect(parsed).toEqual({ ok: true, data, skippedCheckIns: 0 });
   });
 
   it('imports version 1 files from before line icons and the compact setting', () => {
@@ -48,6 +48,26 @@ describe('backup', () => {
     expect(r.data.settings).toEqual({ weekStartsOn: 0, compact: false });
   });
 
+  it('skips check-ins for habits not in the file and keeps everything else exactly', () => {
+    const withOrphans = withChange((b) => {
+      const list = b.checkIns as Record<string, unknown>[];
+      list.splice(1, 0, { habitId: 'deleted', day: '2026-11-10', count: 1, updatedAt: '2026-11-10T20:00:00.000Z' });
+      list.push({ habitId: 'deleted', day: '2026-11-11', count: 0, note: 'orphan note', updatedAt: '2026-11-11T20:00:00.000Z' });
+    });
+    expect(parseBackup(withOrphans)).toEqual({ ok: true, data, skippedCheckIns: 2 });
+  });
+
+  it('still rejects the file when an orphan check-in sits beside other invalid data', () => {
+    const bad = withChange((b) => {
+      const list = b.checkIns as Record<string, unknown>[];
+      list.push({ habitId: 'deleted', day: '2026-11-10', count: 1, updatedAt: '2026-11-10T20:00:00.000Z' });
+      list[0]!.count = -1;
+    });
+    const r = parseBackup(bad);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/checkIns\[0\]\.count/);
+  });
+
   it('records format and version', () => {
     const b = makeBackup(data);
     expect(b.format).toBe('habits-lol-backup');
@@ -58,7 +78,6 @@ describe('backup', () => {
     ['not JSON', 'nope', /not valid JSON/],
     ['another file', JSON.stringify({ hello: 1 }), /not a Habits backup/],
     ['a newer version', withChange((b) => (b.version = BACKUP_VERSION + 1)), /newer version/],
-    ['an orphan check-in', withChange((b) => ((b.checkIns as { habitId: string }[])[0]!.habitId = 'zzz')), /not in the file/],
     ['a duplicate habit id', withChange((b) => ((b.habits as { id: string }[])[1]!.id = 'a')), /same id/],
     ['an invalid day', withChange((b) => ((b.checkIns as { day: string }[])[0]!.day = '2026-02-30')), /YYYY-MM-DD/],
     ['a bad weekday', withChange((b) => ((b.habits as { schedule: unknown }[])[2]!.schedule = { kind: 'weekdays', days: [7] })), /days\[0\]/],

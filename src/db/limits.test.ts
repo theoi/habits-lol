@@ -35,7 +35,7 @@ describe('saved values always survive export and import', () => {
     await setCheckIn(h.id, '2026-11-11', { count: 0, note: 'note only' });
 
     const { before, parsed } = await roundTrip();
-    expect(parsed).toEqual({ ok: true, data: before });
+    expect(parsed).toEqual({ ok: true, data: before, skippedCheckIns: 0 });
     expect(NOTE.length).toBe(LIMITS.noteLength);
 
     await db.delete();
