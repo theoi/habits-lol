@@ -16,6 +16,7 @@ export type Goal = { kind: 'check' } | { kind: 'count'; target: number; unit: st
 export interface Habit {
   id: string;
   name: string;
+  /** Line icon id; see `lib/icons`. */
   icon: string;
   color: string;
   schedule: Schedule;
@@ -42,9 +43,11 @@ export interface CheckIn {
 
 export interface Settings {
   weekStartsOn: WeekStart;
+  /** Dense rows on the Today and Habits lists. */
+  compact: boolean;
 }
 
-export const DEFAULT_SETTINGS: Settings = { weekStartsOn: 1 };
+export const DEFAULT_SETTINGS: Settings = { weekStartsOn: 1, compact: false };
 
 /** Check-in counts for one habit, keyed by day. */
 export type DayCounts = ReadonlyMap<DayKey, number>;

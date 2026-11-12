@@ -3,6 +3,7 @@ import { dayCells } from '../lib/stats';
 import type { DayCounts, DayKey, Habit, WeekStart } from '../lib/types';
 import { formatDay, WEEKDAY_INITIAL } from '../ui/format';
 import { ChevronLeft, ChevronRight } from './icons';
+import { habitVars } from '../ui/color';
 
 export function MonthCalendar({
   habit,
@@ -29,7 +30,7 @@ export function MonthCalendar({
   const cells = dayCells(habit, counts, first, last, today);
   const canNext = addMonths(first, 1) <= today;
   return (
-    <div className="month" style={{ ['--hc' as string]: habit.color }}>
+    <div className="month" style={habitVars(habit.color)}>
       <div className="month-head">
         <button type="button" className="icon-btn ghost" aria-label="Previous month" onClick={() => onMonth(addMonths(first, -1))}>
           <ChevronLeft />
@@ -45,7 +46,7 @@ export function MonthCalendar({
           <ChevronRight />
         </button>
       </div>
-      <div className="month-grid" role="grid">
+      <div className="month-grid">
         {orderedWeekdays(weekStartsOn).map((d) => (
           <span key={d} className="month-dow" aria-hidden="true">
             {WEEKDAY_INITIAL[d]}

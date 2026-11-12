@@ -13,6 +13,7 @@ import type { DayKey } from '../lib/types';
 import { useData } from '../ui/data';
 import { describeHabit, formatDay, formatPercent, formatStreak, formatTime } from '../ui/format';
 import { href } from '../ui/router';
+import { habitVars } from '../ui/color';
 
 const NO_NOTES: ReadonlyMap<DayKey, string> = new Map();
 
@@ -56,7 +57,7 @@ export function HabitDetail({ id }: { id: string }) {
   const { streaks } = stats;
 
   return (
-    <div className="page detail" style={{ ['--hc' as string]: habit.color }}>
+    <div className="page detail" style={habitVars(habit.color)}>
       <nav className="topbar">
         <a className="icon-btn ghost" href={href.today} aria-label="Back">
           <ChevronLeft />

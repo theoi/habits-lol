@@ -5,7 +5,7 @@ export function makeHabit(over: Partial<Habit> & { schedule?: Schedule; goal?: G
   return {
     id: 'h1',
     name: 'Test habit',
-    icon: '✓',
+    icon: 'check',
     color: '#4f8a6e',
     schedule: { kind: 'daily' },
     goal: { kind: 'check' },

@@ -1,18 +1,16 @@
 import { useState, type FormEvent } from 'react';
-import { HabitIcon } from '../components/HabitIcon';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { HabitIcon, LineIcon } from '../components/HabitIcon';
 import { ArchiveIcon, ChevronLeft, MinusIcon, PlusIcon, RestoreIcon, TrashIcon } from '../components/icons';
 import { archiveHabit, createHabit, deleteHabit, restoreHabit, updateHabit, type HabitDraft } from '../db/repo';
 import { orderedWeekdays } from '../lib/dates';
+import { HABIT_ICON_IDS, normalizeHabitIcon } from '../lib/icons';
 import type { Habit, Weekday } from '../lib/types';
 import { useData } from '../ui/data';
 import { WEEKDAY_SHORT } from '../ui/format';
 import { href } from '../ui/router';
+import { HABIT_COLORS, habitVars } from '../ui/color';
 
-export const HABIT_COLORS = ['#4f9a78', '#3d7fb8', '#d49a2a', '#d8664b', '#8d6ac2', '#2f9ea0', '#c95b84', '#64748b'];
-export const HABIT_ICONS = [
-  '💧', '🚶', '📖', '🏋️', '🧘', '📞', '🥗', '😴', '✍️', '🎸', '🧹', '💊',
-  '🌱', '🏃', '🚴', '🧠', '🎨', '💻', '🦷', '☀️', '🍎', '🚭', '💰', '❤️',
-];
 
 type ScheduleKind = 'daily' | 'weekdays' | 'perWeek';
 
@@ -20,7 +18,7 @@ function initialDraft(habit: Habit | undefined): HabitDraft {
   return habit
     ? {
         name: habit.name,
-        icon: habit.icon,
+        icon: normalizeHabitIcon(habit.icon),
         color: habit.color,
         schedule: habit.schedule,
         goal: habit.goal,
@@ -28,7 +26,7 @@ function initialDraft(habit: Habit | undefined): HabitDraft {
       }
     : {
         name: '',
-        icon: '🌱',
+        icon: 'sprout',
         color: HABIT_COLORS[0]!,
         schedule: { kind: 'daily' },
         goal: { kind: 'check' },
@@ -106,8 +104,8 @@ function EditorForm({ existing, weekStartsOn }: { existing: Habit | undefined; w
         <span className="topbar-spacer" />
       </nav>
 
-      <form className="form" onSubmit={(e) => void submit(e)} noValidate>
-        <div className="name-row" style={{ ['--hc' as string]: draft.color }}>
+      <form className="form" onSubmit={(e) => void submit(e)} noValidate style={habitVars(draft.color)}>
+        <div className="name-row">
           <HabitIcon habit={draft} size={56} />
           <label className="field grow">
             <span className="field-label">Name</span>
@@ -128,16 +126,17 @@ function EditorForm({ existing, weekStartsOn }: { existing: Habit | undefined; w
         <fieldset className="field">
           <legend className="field-label">Icon</legend>
           <div className="icon-grid">
-            {HABIT_ICONS.map((icon) => (
+            {HABIT_ICON_IDS.map((icon) => (
               <button
                 key={icon}
                 type="button"
                 className={`icon-choice${draft.icon === icon ? ' is-selected' : ''}`}
                 aria-pressed={draft.icon === icon}
                 aria-label={`Icon ${icon}`}
+                title={icon}
                 onClick={() => patch({ icon })}
               >
-                {icon}
+                <LineIcon id={icon} size={22} />
               </button>
             ))}
           </div>
@@ -324,6 +323,7 @@ function EditorForm({ existing, weekStartsOn }: { existing: Habit | undefined; w
 }
 
 function DangerZone({ habit }: { habit: Habit }) {
+  const [confirming, setConfirming] = useState(false);
   return (
     <div className="danger">
       {habit.archivedAt === null ? (
@@ -342,13 +342,25 @@ function DangerZone({ habit }: { habit: Habit }) {
       <button
         type="button"
         className="btn danger-btn"
-        onClick={() => {
-          if (window.confirm(`Delete “${habit.name}” and all its history? This cannot be undone.`))
-            void deleteHabit(habit.id).then(() => window.location.replace(href.today));
-        }}
+        onClick={() => setConfirming(true)}
       >
         <TrashIcon size={18} /> Delete
       </button>
+      {confirming && (
+        <ConfirmDialog
+          title={`Delete “${habit.name}”?`}
+          confirmLabel="Delete"
+          danger
+          onConfirm={async () => {
+            await deleteHabit(habit.id);
+            window.location.replace(href.today);
+          }}
+          onClose={() => setConfirming(false)}
+        >
+          <p>This removes the habit and all of its history. It cannot be undone.</p>
+          <p className="muted small">To hide it but keep its history, archive it instead.</p>
+        </ConfirmDialog>
+      )}
       <p className="muted small">Archiving hides the habit and keeps its history. You can restore it later.</p>
     </div>
   );

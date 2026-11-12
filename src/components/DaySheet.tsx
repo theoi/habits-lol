@@ -5,6 +5,7 @@ import type { DayKey, Habit } from '../lib/types';
 import { formatDay } from '../ui/format';
 import { CheckIcon, CloseIcon, MinusIcon, PlusIcon } from './icons';
 import { HabitIcon } from './HabitIcon';
+import { habitVars } from '../ui/color';
 
 /** Edit one day's check-in: count (or done) and note. */
 export function DaySheet({
@@ -53,7 +54,7 @@ export function DaySheet({
           void save();
         }}
       >
-        <div className="sheet-head" style={{ ['--hc' as string]: habit.color }}>
+        <div className="sheet-head" style={habitVars(habit.color)}>
           <HabitIcon habit={habit} size={40} />
           <div>
             <h2 id={titleId} className="sheet-title">
@@ -71,7 +72,7 @@ export function DaySheet({
             type="button"
             className={`toggle-done${value >= 1 ? ' is-done' : ''}`}
             aria-pressed={value >= 1}
-            style={{ ['--hc' as string]: habit.color }}
+            style={habitVars(habit.color)}
             onClick={() => setValue(value >= 1 ? 0 : 1)}
           >
             <span className="toggle-done-box">
@@ -80,7 +81,7 @@ export function DaySheet({
             {value >= 1 ? 'Done' : 'Not done'}
           </button>
         ) : (
-          <div className="count-edit" style={{ ['--hc' as string]: habit.color }}>
+          <div className="count-edit" style={habitVars(habit.color)}>
             <button
               type="button"
               className="stepper-btn big"

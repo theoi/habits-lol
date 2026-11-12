@@ -25,19 +25,18 @@ test('exports, wipes, and imports back without loss', async ({ page }) => {
 
   // Change data, then import the earlier backup.
   await page.goto('./#/habit/walk/edit');
-  page.once('dialog', (d) => void d.accept());
   await page.getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
   await expect(page).toHaveURL(/#\/$/);
   await page.goto('./#/settings');
   await page.getByRole('radio', { name: 'Sunday' }).click();
 
   await expect(page.getByRole('radio', { name: 'Sunday' })).toHaveAttribute('aria-checked', 'true');
-  const confirmImport = page.waitForEvent('dialog');
   await page.getByTestId('import-file').setInputFiles(first.path);
-  const confirm = await confirmImport;
-  expect(confirm.message()).toContain('Backup: 7 habits');
-  expect(confirm.message()).toContain('Current: 6 habits');
-  await confirm.accept();
+  const confirm = page.getByRole('alertdialog', { name: 'Replace all data?' });
+  await expect(confirm).toContainText(`Backup7 habits, ${(first.json.checkIns as unknown[]).length} check-ins`);
+  await expect(confirm).toContainText('On this device6 habits');
+  await confirm.getByRole('button', { name: 'Replace' }).click();
   await expect(page.getByText('Backup imported')).toBeVisible();
   await expect(page.getByRole('radio', { name: 'Monday' })).toHaveAttribute('aria-checked', 'true');
 
@@ -56,20 +55,45 @@ test('leaves data untouched when the import is cancelled or invalid', async ({ p
   const before = await exportBackup(page);
 
   const empty = JSON.stringify({ ...before.json, habits: [], checkIns: [] });
-  const confirmImport = page.waitForEvent('dialog');
   await page
     .getByTestId('import-file')
     .setInputFiles({ name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(empty) });
-  await (await confirmImport).dismiss();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
 
-  const alert = page.waitForEvent('dialog');
   await page
     .getByTestId('import-file')
     .setInputFiles({ name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{"format":"other"}') });
-  const a = await alert;
-  expect(a.message()).toContain('not a Habits backup');
-  await a.accept();
+  const error = page.getByRole('dialog', { name: 'Couldn’t import this file' });
+  await expect(error).toContainText('not a Habits backup');
+  await error.getByRole('button', { name: 'OK' }).click();
+  await expect(error).toHaveCount(0);
 
   const after = await exportBackup(page);
   expect({ ...after.json, exportedAt: null }).toEqual({ ...before.json, exportedAt: null });
+});
+
+test('imports a backup from before line icons, mapping emoji icons', async ({ page }) => {
+  await openFresh(page);
+  const old = {
+    format: 'habits-lol-backup',
+    version: 1,
+    exportedAt: '2026-11-12T09:00:00.000Z',
+    settings: { weekStartsOn: 1 },
+    habits: [
+      { id: 'w', name: 'Water', icon: '💧', color: '#3d7fb8', schedule: { kind: 'daily' }, goal: { kind: 'count', target: 8, unit: 'glasses' }, reminderTime: null, order: 0, createdAt: '2026-11-01T09:00:00.000Z', startDay: '2026-11-01', archivedAt: null },
+      { id: 'u', name: 'Unicorn', icon: '🦄', color: '#8d6ac2', schedule: { kind: 'daily' }, goal: { kind: 'check' }, reminderTime: null, order: 1, createdAt: '2026-11-01T09:00:00.000Z', startDay: '2026-11-01', archivedAt: null },
+    ],
+    checkIns: [{ habitId: 'w', day: '2026-11-11', count: 8, updatedAt: '2026-11-11T20:00:00.000Z' }],
+  };
+  await page.goto('./#/settings');
+  await page.getByTestId('import-file').setInputFiles({ name: 'old.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(old)) });
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Replace' }).click();
+  await expect(page.getByText('Backup imported')).toBeVisible();
+
+  const after = await exportBackup(page);
+  expect((after.json.habits as { icon: string }[]).map((h) => h.icon)).toEqual(['droplet', 'check']);
+  expect(after.json.settings).toEqual({ weekStartsOn: 1, compact: false });
+  await page.goto('./');
+  await expect(page.locator('.habit-row .habit-icon svg')).toHaveCount(2);
 });

@@ -1,4 +1,5 @@
 import { isDayKey, parseTimeOfDay } from './dates';
+import { normalizeHabitIcon } from './icons';
 import type { CheckIn, Goal, Habit, Schedule, Settings, Weekday } from './types';
 
 export const BACKUP_FORMAT = 'habits-lol-backup';
@@ -110,7 +111,7 @@ function habit(v: unknown, i: number): Habit {
   return {
     id: str(o.id, `${w}.id`, { max: 100 }),
     name: str(o.name, `${w}.name`, { max: 200 }),
-    icon: str(o.icon, `${w}.icon`, { max: 40, empty: true }),
+    icon: normalizeHabitIcon(str(o.icon, `${w}.icon`, { max: 40, empty: true })),
     color: str(o.color, `${w}.color`, { max: 40 }),
     schedule: schedule(o.schedule, `${w}.schedule`),
     goal: goal(o.goal, `${w}.goal`),
@@ -153,6 +154,7 @@ export function parseBackup(text: string): ParseResult {
     if (version > BACKUP_VERSION) fail('This backup was made by a newer version of the app');
     const s = obj(o.settings, 'settings');
     if (s.weekStartsOn !== 0 && s.weekStartsOn !== 1) fail('settings.weekStartsOn must be 0 or 1');
+    if (s.compact !== undefined && typeof s.compact !== 'boolean') fail('settings.compact must be true or false');
     if (!Array.isArray(o.habits)) fail('habits must be a list');
     if (!Array.isArray(o.checkIns)) fail('checkIns must be a list');
     const habits = o.habits.map(habit);
@@ -161,7 +163,10 @@ export function parseBackup(text: string): ParseResult {
     const checkIns = o.checkIns.map((c, i) => checkIn(c, i, ids));
     const keys = new Set(checkIns.map((c) => `${c.habitId}|${c.day}`));
     if (keys.size !== checkIns.length) fail('Two check-ins share the same habit and day');
-    return { ok: true, data: { settings: { weekStartsOn: s.weekStartsOn }, habits, checkIns } };
+    return {
+      ok: true,
+      data: { settings: { weekStartsOn: s.weekStartsOn, compact: s.compact ?? false }, habits, checkIns },
+    };
   } catch (e) {
     if (e instanceof Invalid) return { ok: false, error: `${e.message}.` };
     throw e;

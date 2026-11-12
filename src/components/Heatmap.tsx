@@ -3,6 +3,7 @@ import { addDays, orderedWeekdays, startOfWeek } from '../lib/dates';
 import { dayCells, type DayCell } from '../lib/stats';
 import type { DayCounts, DayKey, Habit, WeekStart } from '../lib/types';
 import { formatDay, WEEKDAY_SHORT } from '../ui/format';
+import { habitVars } from '../ui/color';
 
 const CELL = 13;
 const GAP = 3;
@@ -65,7 +66,14 @@ export function Heatmap({
   }
 
   return (
-    <div className="heatmap-scroll" ref={scroller} style={{ ['--hc' as string]: habit.color }}>
+    <div
+      className="heatmap-scroll"
+      ref={scroller}
+      style={habitVars(habit.color)}
+      tabIndex={0}
+      role="region"
+      aria-label="Past year, scrollable"
+    >
       <svg
         className="heatmap"
         width={width}

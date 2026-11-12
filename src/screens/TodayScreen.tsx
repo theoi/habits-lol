@@ -13,6 +13,7 @@ import { useData } from '../ui/data';
 import { describeGoal, formatDay, formatStreak, formatTime } from '../ui/format';
 import { href } from '../ui/router';
 import { useToast } from '../ui/toast';
+import { habitVars } from '../ui/color';
 
 const NO_COUNTS: DayCounts = new Map();
 
@@ -237,7 +238,7 @@ function HabitRow({
   return (
     <article
       className={`habit-row status-${status}${muted ? ' is-muted' : ''}`}
-      style={{ ['--hc' as string]: habit.color }}
+      style={habitVars(habit.color)}
     >
       <a className="habit-row-main" href={href.detail(habit.id)}>
         <HabitIcon habit={habit} />

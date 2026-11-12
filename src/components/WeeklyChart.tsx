@@ -1,5 +1,6 @@
 import type { WeekRate } from '../lib/stats';
 import { formatDay, formatPercent } from '../ui/format';
+import { habitVars } from '../ui/color';
 
 const H = 132;
 const BOTTOM = 22;
@@ -19,7 +20,7 @@ export function WeeklyChart({ rates, color }: { rates: WeekRate[]; color: string
       width="100%"
       role="img"
       aria-label="Weekly completion rate"
-      style={{ ['--hc' as string]: color }}
+      style={habitVars(color)}
     >
       {[0, 0.5, 1].map((v) => (
         <g key={v}>

@@ -3,9 +3,9 @@ import { BACKUP_VERSION, makeBackup, parseBackup, type BackupData } from './back
 import { makeHabit } from '../test/fixtures';
 
 const data: BackupData = {
-  settings: { weekStartsOn: 0 },
+  settings: { weekStartsOn: 0, compact: true },
   habits: [
-    makeHabit({ id: 'a', name: 'Water', goal: { kind: 'count', target: 8, unit: 'glasses' }, reminderTime: '09:00' }),
+    makeHabit({ id: 'a', name: 'Water', icon: 'droplet', goal: { kind: 'count', target: 8, unit: 'glasses' }, reminderTime: '09:00' }),
     makeHabit({
       id: 'b',
       name: 'Gym',
@@ -34,6 +34,20 @@ describe('backup', () => {
     expect(parsed).toEqual({ ok: true, data });
   });
 
+  it('imports version 1 files from before line icons and the compact setting', () => {
+    const old = withChange((b) => {
+      (b.habits as { icon: string }[])[0]!.icon = '💧';
+      (b.habits as { icon: string }[])[1]!.icon = '🏋️';
+      (b.habits as { icon: string }[])[2]!.icon = '🦄';
+      delete (b.settings as { compact?: boolean }).compact;
+    });
+    const r = parseBackup(old);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.data.habits.map((h) => h.icon)).toEqual(['droplet', 'dumbbell', 'check']);
+    expect(r.data.settings).toEqual({ weekStartsOn: 0, compact: false });
+  });
+
   it('records format and version', () => {
     const b = makeBackup(data);
     expect(b.format).toBe('habits-lol-backup');
@@ -49,6 +63,7 @@ describe('backup', () => {
     ['an invalid day', withChange((b) => ((b.checkIns as { day: string }[])[0]!.day = '2026-02-30')), /YYYY-MM-DD/],
     ['a bad weekday', withChange((b) => ((b.habits as { schedule: unknown }[])[2]!.schedule = { kind: 'weekdays', days: [7] })), /days\[0\]/],
     ['a negative count', withChange((b) => ((b.checkIns as { count: number }[])[0]!.count = -1)), /count/],
+    ['a non-boolean compact setting', withChange((b) => ((b.settings as { compact: unknown }).compact = 'yes')), /compact/],
     ['a bad reminder', withChange((b) => ((b.habits as { reminderTime: string }[])[0]!.reminderTime = '25:00')), /reminderTime/],
     [
       'duplicate check-ins',

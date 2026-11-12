@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { db } from './db';
+import Dexie from 'dexie';
+import { db, HabitsDB } from './db';
 import {
   archiveHabit,
   claimReminder,
@@ -9,6 +10,7 @@ import {
   exportAll,
   getLastFired,
   getSettings,
+  releaseReminder,
   reorderHabits,
   replaceAll,
   restoreHabit,
@@ -81,27 +83,54 @@ describe('reminders', () => {
     expect(await claimReminder('h', '2026-11-13')).toBe(true);
     expect(await getLastFired()).toEqual({ h: '2026-11-13' });
   });
+
+  it('lets a released claim be claimed again, without touching other days', async () => {
+    expect(await claimReminder('h', '2026-11-12')).toBe(true);
+    await releaseReminder('h', '2026-11-11');
+    expect(await claimReminder('h', '2026-11-12')).toBe(false);
+    await releaseReminder('h', '2026-11-12');
+    expect(await claimReminder('h', '2026-11-12')).toBe(true);
+  });
 });
 
 describe('export and import', () => {
   it('replaces everything and exports the same data back', async () => {
     const a = await createHabit(draft('A'));
     await setCheckIn(a.id, '2026-11-10', { count: 1, note: 'first' });
-    await saveSettings({ weekStartsOn: 0 });
+    await saveSettings({ weekStartsOn: 0, compact: true });
     const snapshot = await exportAll();
 
     await createHabit(draft('Extra'));
     await setCheckIn(a.id, '2026-11-11', { count: 1 });
-    await saveSettings({ weekStartsOn: 1 });
+    await saveSettings({ weekStartsOn: 1, compact: false });
 
     await replaceAll(snapshot);
     expect(await exportAll()).toEqual(snapshot);
-    expect(await getSettings()).toEqual({ weekStartsOn: 0 });
+    expect(await getSettings()).toEqual({ weekStartsOn: 0, compact: true });
   });
 
   it('keeps reminder history so an import does not re-fire today', async () => {
     await claimReminder('h', '2026-11-12');
-    await replaceAll({ settings: { weekStartsOn: 1 }, habits: [], checkIns: [] });
+    await replaceAll({ settings: { weekStartsOn: 1, compact: false }, habits: [], checkIns: [] });
     expect(await claimReminder('h', '2026-11-12')).toBe(false);
+  });
+});
+
+describe('schema upgrade', () => {
+  it('maps emoji icons from version 1 data to line icons', async () => {
+    const v1 = new Dexie('upgrade-test');
+    v1.version(1).stores({ habits: 'id, order', checkIns: '[habitId+day], habitId, day', meta: 'key' });
+    await v1.table('habits').bulkAdd([
+      { id: 'a', name: 'Water', icon: '💧', order: 0 },
+      { id: 'b', name: 'Gym', icon: '🏋️', order: 1 },
+      { id: 'c', name: 'Odd', icon: '🦄', order: 2 },
+    ]);
+    v1.close();
+
+    const upgraded = new HabitsDB('upgrade-test');
+    const icons = (await upgraded.habits.orderBy('order').toArray()).map((h) => h.icon);
+    expect(icons).toEqual(['droplet', 'dumbbell', 'check']);
+    upgraded.close();
+    await Dexie.delete('upgrade-test');
   });
 });

@@ -84,6 +84,7 @@ test('edits, reorders, archives, and restores habits', async ({ page }) => {
   await expect(page.locator('.habit-name')).toHaveText(['Alpha renamed']);
   await page.goto('./#/habits');
   await page.getByRole('button', { name: 'Restore' }).click();
+  await expect(page.getByRole('list', { name: 'Active habits' })).toContainText('Beta');
   await page.goto('./');
   await expect(page.locator('.habit-name')).toHaveText(['Alpha renamed', 'Beta']);
 });

@@ -6,6 +6,7 @@ import { HabitEditor } from './screens/HabitEditor';
 import { HabitsScreen } from './screens/HabitsScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { TodayScreen } from './screens/TodayScreen';
+import { useData } from './ui/data';
 import { href, useRoute, type Route } from './ui/router';
 
 function Screen({ route }: { route: Route }) {
@@ -33,6 +34,7 @@ const TABS = [
 
 export function App() {
   const route = useRoute();
+  const { settings } = useData();
   useReminders();
   const key = route.name === 'detail' || route.name === 'edit' ? `${route.name}/${route.id}` : route.name;
 
@@ -44,7 +46,7 @@ export function App() {
   const focused = route.name === 'new' || route.name === 'edit';
 
   return (
-    <div className={`app${focused ? ' is-focused' : ''}`}>
+    <div className={`app${focused ? ' is-focused' : ''}${settings.compact ? ' is-compact' : ''}`}>
       <nav className="nav" aria-label="Main">
         <a className="brand" href={href.today}>
           <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" width={28} height={28} />

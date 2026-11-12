@@ -9,8 +9,11 @@ async function shown(page: Page): Promise<string[]> {
   });
 }
 
-test.beforeEach(async ({ context }) => {
+test.beforeEach(async ({ context, page }) => {
   await context.grantPermissions(['notifications']);
+  page.on('console', (m) => {
+    if (m.type() === 'error') console.log(`[page error] ${m.text()}`);
+  });
 });
 
 test('fires once at the reminder time while the habit is due, then again the next day', async ({ page }) => {
@@ -25,16 +28,16 @@ test('fires once at the reminder time while the habit is due, then again the nex
   expect(await shown(page)).toEqual([]);
 
   await page.clock.runFor('06:00'); // 07:31
-  await expect.poll(() => shown(page)).toEqual(['🌱 Walk']);
+  await expect.poll(() => shown(page)).toEqual(['Walk']);
 
   await page.clock.runFor('40:00');
   await page.reload();
   await page.clock.runFor('01:00');
   await page.waitForTimeout(300);
-  expect(await shown(page)).toEqual(['🌱 Walk']); // reloaded page, but already fired today
+  expect(await shown(page)).toEqual(['Walk']); // reloaded page, but already fired today
 
   await page.clock.runFor('24:00:00'); // next day 08:12, still inside the hour after 07:30
-  await expect.poll(async () => (await shown(page)).sort()).toEqual(['🌱 Read', '🌱 Walk', '🌱 Walk']);
+  await expect.poll(async () => (await shown(page)).sort()).toEqual(['Read', 'Walk', 'Walk']);
 });
 
 test('does not fire for a habit done before its time', async ({ page }) => {

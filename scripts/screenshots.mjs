@@ -50,6 +50,26 @@ for (const [name, opts] of Object.entries(sizes)) {
   await page.getByRole('button', { name: /Tuesday 10 November/ }).click();
   await page.waitForTimeout(400);
   await shot('4-day-sheet');
+  await page.keyboard.press('Escape');
+  await page.goto(`${base}#/habits`);
+  await page.getByRole('heading', { name: 'Habits' }).waitFor();
+  await page.waitForTimeout(250);
+  await shot('5-habits');
+  await page.goto(`${base}#/settings`);
+  await page.getByRole('heading', { name: 'Settings' }).waitFor();
+  await page.waitForTimeout(250);
+  await shot('6-settings');
+  // Compact list
+  await page.getByRole('switch', { name: /Compact list/ }).check();
+  await page.locator('.app.is-compact').waitFor();
+  await page.goto(base);
+  await page.getByRole('heading', { name: /To do|Done/ }).first().waitFor();
+  await page.waitForTimeout(300);
+  await shot('7-today-compact');
+  await page.goto(`${base}#/habits`);
+  await page.locator('.app.is-compact .list-row').first().waitFor();
+  await page.waitForTimeout(300);
+  await shot('8-habits-compact');
   await ctx.close();
 }
 await browser.close();

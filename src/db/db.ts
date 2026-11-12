@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import { normalizeHabitIcon } from '../lib/icons';
 import type { CheckIn, Habit } from '../lib/types';
 
 export interface MetaRow {
@@ -18,6 +19,14 @@ export class HabitsDB extends Dexie {
       checkIns: '[habitId+day], habitId, day',
       meta: 'key',
     });
+    this.version(2).upgrade((tx) =>
+      tx
+        .table<Habit, string>('habits')
+        .toCollection()
+        .modify((h) => {
+          h.icon = normalizeHabitIcon(h.icon);
+        }),
+    );
   }
 }
 

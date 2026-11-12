@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { claimReminder, getLastFired } from '../db/repo';
+import { claimReminder, getLastFired, releaseReminder } from '../db/repo';
 import { toDayKey } from '../lib/dates';
 import { remindersDue } from '../lib/reminders';
 import { describeGoal } from '../ui/format';
@@ -29,11 +29,17 @@ export function useReminders(): void {
       for (const habit of due) {
         if (stopped || !(await claimReminder(habit.id, today))) continue;
         const goal = describeGoal(habit.goal);
-        await showNotification(`${habit.icon} ${habit.name}`.trim(), {
-          body: goal ? `Still to do today: ${goal}` : 'Still to do today',
-          tag: `habit-${habit.id}-${today}`,
-          data: { url: `${import.meta.env.BASE_URL}#/habit/${encodeURIComponent(habit.id)}` },
-        });
+        try {
+          await showNotification(habit.name, {
+            icon: `${import.meta.env.BASE_URL}pwa-192.png`,
+            body: goal ? `Still to do today: ${goal}` : 'Still to do today',
+            tag: `habit-${habit.id}-${today}`,
+            data: { url: `${import.meta.env.BASE_URL}#/habit/${encodeURIComponent(habit.id)}` },
+          });
+        } catch (error) {
+          console.error('Reminder notification failed', error);
+          await releaseReminder(habit.id, today);
+        }
       }
     };
     void check();

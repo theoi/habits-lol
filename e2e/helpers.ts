@@ -37,11 +37,11 @@ export async function createHabit(page: Page, h: NewHabit): Promise<void> {
   }
   if (h.count) {
     await page.getByRole('radio', { name: 'Reach a number' }).click();
-    await page.getByLabel('Target').fill(String(h.count.target));
-    await page.getByLabel('Unit').fill(h.count.unit);
+    await page.getByLabel('Target', { exact: true }).fill(String(h.count.target));
+    await page.getByLabel('Unit', { exact: true }).fill(h.count.unit);
   }
   if (h.reminder) {
-    await page.getByRole('switch').check({ force: true });
+    await page.getByRole('switch', { name: 'Remind me' }).check();
     await page.getByLabel('Reminder time').fill(h.reminder);
   }
   await page.getByRole('button', { name: 'Create habit' }).click();

@@ -103,6 +103,17 @@ export async function claimReminder(habitId: string, day: DayKey): Promise<boole
   });
 }
 
+/** Undoes a claim whose notification could not be shown, so a later check retries it. */
+export async function releaseReminder(habitId: string, day: DayKey): Promise<void> {
+  await db.transaction('rw', db.meta, async () => {
+    const row = await db.meta.get(LAST_FIRED_KEY);
+    const lastFired = { ...((row?.value as Record<string, DayKey> | undefined) ?? {}) };
+    if (lastFired[habitId] !== day) return;
+    delete lastFired[habitId];
+    await db.meta.put({ key: LAST_FIRED_KEY, value: lastFired });
+  });
+}
+
 export async function getLastFired(): Promise<Record<string, DayKey>> {
   const row = await db.meta.get(LAST_FIRED_KEY);
   return (row?.value as Record<string, DayKey> | undefined) ?? {};
