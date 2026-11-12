@@ -21,7 +21,11 @@ test('exports, wipes, and imports back without loss', async ({ page }) => {
   const first = await exportBackup(page);
   expect(first.json.format).toBe('habits-lol-backup');
   expect((first.json.habits as unknown[]).length).toBe(7);
-  expect((first.json.checkIns as unknown[]).length).toBeGreaterThan(300);
+  const days = (first.json.checkIns as { day: string }[]).map((c) => c.day).sort();
+  expect(days.length).toBeGreaterThan(300);
+  // About four months of history, ending today (12 November 2026 in openFresh).
+  expect(days[0]).toBe('2026-07-15');
+  expect(days.at(-1)).toBe('2026-11-12');
 
   // Change data, then import the earlier backup.
   await page.goto('./#/habit/walk/edit');

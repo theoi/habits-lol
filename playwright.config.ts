@@ -24,6 +24,5 @@ export default defineConfig({
     url: `http://localhost:${PORT}/habits-lol/`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    env: { VITE_DEMO: '0' },
   },
 });

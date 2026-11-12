@@ -10,14 +10,13 @@ export async function requestNotifications(): Promise<Permission> {
 }
 
 /**
- * Shows a notification through the service worker, which mobile browsers
- * require, falling back to a page notification when no worker is active.
+ * Shows a notification through the active service worker, which mobile
+ * browsers require, or as a page notification when no worker is active yet.
+ * Never waits on a timer, so it behaves the same when timers are throttled.
  */
 export async function showNotification(title: string, options: NotificationOptions & { data?: unknown }): Promise<void> {
-  const reg = navigator.serviceWorker
-    ? await Promise.race([navigator.serviceWorker.ready, new Promise<undefined>((r) => setTimeout(r, 3000))])
-    : undefined;
-  if (reg) {
+  const reg = await navigator.serviceWorker?.getRegistration();
+  if (reg?.active) {
     await reg.showNotification(title, options);
     return;
   }
