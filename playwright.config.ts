@@ -10,6 +10,8 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
+    // Full Chromium rather than the headless shell, which always denies notification permission.
+    channel: 'chromium',
     baseURL: `http://localhost:${PORT}/habits-lol/`,
     trace: 'retain-on-failure',
   },

@@ -137,7 +137,7 @@ button:disabled {
 }
 
 .main {
-  padding: 0 16px calc(var(--nav-h) + 96px + env(safe-area-inset-bottom));
+  padding: 0 16px calc(var(--nav-h) + 32px + env(safe-area-inset-bottom));
 }
 
 .page {
@@ -711,26 +711,29 @@ button:disabled {
   font-weight: 800;
 }
 
-.fab {
-  position: fixed;
-  right: max(18px, env(safe-area-inset-right));
-  bottom: calc(var(--nav-h) + 18px + env(safe-area-inset-bottom));
-  z-index: 15;
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 20px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  box-shadow: var(--shadow-lg);
+.today-head > div:first-child {
+  min-width: 0;
 }
 
-@media (min-width: 900px) {
-  .fab {
-    bottom: 32px;
-    right: 40px;
-  }
+.today-head .display {
+  white-space: nowrap;
+  font-size: clamp(1.55rem, 7vw, 2rem);
+}
+
+.today-head-side {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.add-btn {
+  width: 44px;
+  height: 44px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: transparent;
+  box-shadow: var(--shadow);
 }
 
 .empty {
@@ -1450,7 +1453,7 @@ textarea {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(var(--nav-h) + 86px + env(safe-area-inset-bottom));
+  bottom: calc(var(--nav-h) + 16px + env(safe-area-inset-bottom));
   display: flex;
   justify-content: center;
   pointer-events: none;

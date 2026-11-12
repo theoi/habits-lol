@@ -6,7 +6,7 @@ import { BellIcon, FlameIcon, NoteIcon, PlusIcon } from '../components/icons';
 import { ProgressRing } from '../components/ProgressRing';
 import { WeekStrip } from '../components/WeekStrip';
 import { seedSampleData } from '../db/seed';
-import { dayStatus, goalTarget, weekProgress, type DayStatus } from '../lib/schedule';
+import { dayStatus, effectiveStart, goalTarget, weekProgress, type DayStatus } from '../lib/schedule';
 import { computeStreaks } from '../lib/streaks';
 import type { DayCounts, DayKey, Habit } from '../lib/types';
 import { useData } from '../ui/data';
@@ -16,14 +16,21 @@ import { useToast } from '../ui/toast';
 
 const NO_COUNTS: DayCounts = new Map();
 
+type RowStatus = DayStatus | 'notStarted';
+
 interface Row {
   habit: Habit;
   counts: DayCounts;
-  status: DayStatus;
+  status: RowStatus;
 }
 
-function habitsOn(habits: Habit[], countsByHabit: Map<string, Map<DayKey, number>>, day: DayKey) {
-  return habits.filter((h) => h.archivedAt === null && (h.startDay <= day || countsByHabit.get(h.id)?.has(day)));
+/**
+ * Status of a habit on a day. Days before a habit's start are shown so they can
+ * be back-filled, but they are not counted as due.
+ */
+function rowStatus(habit: Habit, counts: DayCounts, day: DayKey, weekStartsOn: 0 | 1): RowStatus {
+  const status = dayStatus(habit, counts, day, weekStartsOn);
+  return status !== 'done' && day < effectiveStart(habit, counts) ? 'notStarted' : status;
 }
 
 export function TodayScreen() {
@@ -36,23 +43,26 @@ export function TodayScreen() {
 
   const rows: Row[] = useMemo(
     () =>
-      habitsOn(habits, countsByHabit, day).map((habit) => {
-        const counts = countsByHabit.get(habit.id) ?? NO_COUNTS;
-        return { habit, counts, status: dayStatus(habit, counts, day, ws) };
-      }),
+      habits
+        .filter((h) => h.archivedAt === null)
+        .map((habit) => {
+          const counts = countsByHabit.get(habit.id) ?? NO_COUNTS;
+          return { habit, counts, status: rowStatus(habit, counts, day, ws) };
+        }),
     [habits, countsByHabit, day, ws],
   );
 
   const due = rows.filter((r) => r.status === 'due');
   const done = rows.filter((r) => r.status === 'done');
-  const other = rows.filter((r) => r.status === 'rest' || r.status === 'weekMet');
+  const other = rows.filter((r) => r.status === 'rest' || r.status === 'weekMet' || r.status === 'notStarted');
   const total = due.length + done.length;
 
   const progress = (d: DayKey) => {
     let n = 0;
     let k = 0;
-    for (const h of habitsOn(habits, countsByHabit, d)) {
-      const s = dayStatus(h, countsByHabit.get(h.id) ?? NO_COUNTS, d, ws);
+    for (const h of habits) {
+      if (h.archivedAt !== null) continue;
+      const s = rowStatus(h, countsByHabit.get(h.id) ?? NO_COUNTS, d, ws);
       if (s === 'done') {
         n++;
         k++;
@@ -111,7 +121,11 @@ export function TodayScreen() {
             </button>
           )}
         </div>
-        <ProgressRing
+        <div className="today-head-side">
+          <a className="icon-btn add-btn" href={href.newHabit} aria-label="New habit">
+            <PlusIcon size={22} />
+          </a>
+          <ProgressRing
           value={total ? done.length / total : 0}
           size={64}
           stroke={7}
@@ -121,7 +135,8 @@ export function TodayScreen() {
             {done.length}
             <small>/{total}</small>
           </span>
-        </ProgressRing>
+          </ProgressRing>
+        </div>
       </header>
 
       <WeekStrip
@@ -166,10 +181,6 @@ export function TodayScreen() {
         </section>
       )}
 
-      <a className="fab" href={href.newHabit} aria-label="New habit">
-        <PlusIcon size={24} />
-      </a>
-
       {sheet && (
         <DaySheet
           key={`${sheet.id}${day}`}
@@ -205,10 +216,12 @@ function HabitRow({
   const count = counts.get(day) ?? 0;
   const target = goalTarget(habit.goal);
   const streak = computeStreaks(habit, counts, today, weekStartsOn);
-  const muted = status === 'rest' || status === 'weekMet';
+  const muted = status === 'rest' || status === 'weekMet' || status === 'notStarted';
 
   let meta: React.ReactNode;
-  if (habit.schedule.kind === 'perWeek') {
+  if (status === 'notStarted') {
+    meta = <span>Before this habit started</span>;
+  } else if (habit.schedule.kind === 'perWeek') {
     const wp = weekProgress(habit, counts, day, weekStartsOn);
     meta = (
       <span>
