@@ -1,4 +1,5 @@
 import { setCheckIn } from '../db/repo';
+import { LIMITS } from '../lib/limits';
 import { goalTarget } from '../lib/schedule';
 import type { DayKey, Habit } from '../lib/types';
 import { CheckIcon, MinusIcon, PlusIcon } from './icons';
@@ -59,7 +60,14 @@ export function CheckControl({
         <span className="stepper-count">{count}</span>
         <span className="stepper-target">/{target}</span>
       </button>
-      <button type="button" className="stepper-btn" aria-label={`Increase ${habit.name}`} onClick={() => set(count + 1)}>
+      <button
+        type="button"
+        className="stepper-btn"
+        aria-label={`Increase ${habit.name}`}
+        disabled={count >= LIMITS.countMax}
+        title={count >= LIMITS.countMax ? `The most a day can hold is ${LIMITS.countMax.toLocaleString('en-US')}` : undefined}
+        onClick={() => set(count + 1)}
+      >
         {done ? <CheckIcon size={18} strokeWidth={2.6} /> : <PlusIcon size={18} />}
       </button>
     </div>

@@ -23,6 +23,7 @@ To look around without entering anything, tap **Try sample habits** on the first
 - **Habits** reorders and archives habits. Archived habits keep their history and can be restored or deleted.
 - **Settings:** week start (Monday or Sunday), compact list, notification permission, and backup export/import.
 - **Install:** in Chrome or Edge, use the install button in the address bar or menu. On iPhone or iPad, open the site in Safari and choose Share → Add to Home Screen.
+- **Reminders on iPhone and iPad** need iOS or iPadOS 16.4 or later and the app added to the Home Screen; open it from there and allow notifications in Settings. Safari tabs don't support web notifications, so in plain Safari the Settings screen says notifications aren't supported.
 
 ## Development
 
@@ -59,5 +60,7 @@ Pushes to `main` run lint, type checks, unit tests, and end-to-end tests (includ
 - A reminder fires once per habit per day, from its set time up to an hour later, and only if the habit is still due that day. It fires only while the app is open or running in the background; browsers can't run it when the app is fully closed.
 
 ## Backups
+
+Values have fixed limits so that anything you save can be restored: names up to 80 characters, units up to 24, notes up to 2,000, a goal target from 1 to 100,000, and a day's count from 0 to 1,000,000. The editor, the day editor, and the importer all use the same limits (`src/lib/limits.ts`).
 
 Export writes a versioned JSON file (`format: "habits-lol-backup"`, `version: 1`) with your habits, check-ins, and settings. Import checks the whole file first and changes nothing if any part is invalid; if it is valid, it replaces all data after you confirm. Backups made before line icons replaced emoji still import; emoji icons are mapped to the closest line icon.

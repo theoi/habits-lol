@@ -1,5 +1,6 @@
 import { isDayKey, parseTimeOfDay } from './dates';
 import { normalizeHabitIcon } from './icons';
+import { isHabitColor, LIMITS } from './limits';
 import type { CheckIn, Goal, Habit, Schedule, Settings, Weekday } from './types';
 
 export const BACKUP_FORMAT = 'habits-lol-backup';
@@ -82,7 +83,7 @@ function schedule(v: unknown, where: string): Schedule {
       return { kind: 'weekdays', days: [...days].sort() };
     }
     case 'perWeek':
-      return { kind: 'perWeek', times: int(o.times, `${where}.times`, 1, 7) };
+      return { kind: 'perWeek', times: int(o.times, `${where}.times`, 1, LIMITS.timesPerWeekMax) };
     default:
       return fail(`${where}.kind is not a known schedule`);
   }
@@ -94,8 +95,8 @@ function goal(v: unknown, where: string): Goal {
   if (o.kind === 'count')
     return {
       kind: 'count',
-      target: int(o.target, `${where}.target`, 1, 100_000),
-      unit: str(o.unit, `${where}.unit`, { max: 40, empty: true }),
+      target: int(o.target, `${where}.target`, 1, LIMITS.targetMax),
+      unit: str(o.unit, `${where}.unit`, { max: LIMITS.unitLength, empty: true }),
     };
   return fail(`${where}.kind is not a known goal`);
 }
@@ -108,11 +109,12 @@ function habit(v: unknown, i: number): Habit {
     fail(`${w}.reminderTime must be HH:mm or null`);
   if (!isDayKey(o.startDay)) fail(`${w}.startDay must be a YYYY-MM-DD date`);
   if (typeof o.order !== 'number' || !Number.isFinite(o.order)) fail(`${w}.order must be a number`);
+  if (!isHabitColor(o.color)) fail(`${w}.color must be a #rrggbb color`);
   return {
     id: str(o.id, `${w}.id`, { max: 100 }),
-    name: str(o.name, `${w}.name`, { max: 200 }),
+    name: str(o.name, `${w}.name`, { max: LIMITS.nameLength }),
     icon: normalizeHabitIcon(str(o.icon, `${w}.icon`, { max: 40, empty: true })),
-    color: str(o.color, `${w}.color`, { max: 40 }),
+    color: o.color,
     schedule: schedule(o.schedule, `${w}.schedule`),
     goal: goal(o.goal, `${w}.goal`),
     reminderTime: reminder as string | null,
@@ -132,10 +134,10 @@ function checkIn(v: unknown, i: number, ids: Set<string>): CheckIn {
   const out: CheckIn = {
     habitId,
     day: o.day,
-    count: int(o.count, `${w}.count`, 0, 1_000_000),
+    count: int(o.count, `${w}.count`, 0, LIMITS.countMax),
     updatedAt: timestamp(o.updatedAt, `${w}.updatedAt`),
   };
-  if (o.note !== undefined) out.note = str(o.note, `${w}.note`, { max: 5000, empty: true });
+  if (o.note !== undefined) out.note = str(o.note, `${w}.note`, { max: LIMITS.noteLength, empty: true });
   return out;
 }
 

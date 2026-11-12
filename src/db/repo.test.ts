@@ -21,7 +21,7 @@ import {
 
 const draft = (name: string): HabitDraft => ({
   name,
-  icon: '💧',
+  icon: 'droplet',
   color: '#3a7bd5',
   schedule: { kind: 'daily' },
   goal: { kind: 'check' },

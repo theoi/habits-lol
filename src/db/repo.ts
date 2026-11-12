@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS, type CheckIn, type DayKey, type Habit, type Settings } from '../lib/types';
 import { todayKey } from '../lib/dates';
 import type { BackupData } from '../lib/backup';
+import { checkCount, checkHabitDraft, checkNote } from '../lib/limits';
 import { db } from './db';
 
 const SETTINGS_KEY = 'settings';
@@ -17,7 +18,13 @@ async function nextOrder(): Promise<number> {
   return last ? last.order + 1 : 0;
 }
 
+/** Rejects a value the backup importer would not accept, so every save can be restored from a backup. */
+function assertValid(problem: string | null): void {
+  if (problem) throw new RangeError(problem);
+}
+
 export async function createHabit(draft: HabitDraft, now: Date = new Date()): Promise<Habit> {
+  assertValid(checkHabitDraft(draft));
   return db.transaction('rw', db.habits, async () => {
     const habit: Habit = {
       ...draft,
@@ -33,6 +40,7 @@ export async function createHabit(draft: HabitDraft, now: Date = new Date()): Pr
 }
 
 export async function updateHabit(id: string, draft: HabitDraft): Promise<void> {
+  assertValid(checkHabitDraft(draft));
   await db.habits.update(id, { ...draft });
 }
 
@@ -60,22 +68,29 @@ export async function reorderHabits(ids: readonly string[]): Promise<void> {
   });
 }
 
-/** Sets a day's count and note. A zero count without a note removes the check-in. */
+/**
+ * Sets a day's count and note. A zero count without a note removes the
+ * check-in. Does nothing if the habit no longer exists (for example, deleted
+ * in another tab), since a check-in without its habit would make backups fail.
+ */
 export async function setCheckIn(
   habitId: string,
   day: DayKey,
   value: { count: number; note?: string },
   now: Date = new Date(),
 ): Promise<void> {
-  const count = Math.max(0, Math.round(value.count));
   const note = value.note?.trim() ? value.note : undefined;
-  if (count === 0 && !note) {
-    await db.checkIns.delete([habitId, day]);
-    return;
-  }
-  const row: CheckIn = { habitId, day, count, updatedAt: now.toISOString() };
-  if (note) row.note = note;
-  await db.checkIns.put(row);
+  assertValid(checkCount(value.count) ?? checkNote(note));
+  await db.transaction('rw', db.habits, db.checkIns, async () => {
+    if (value.count === 0 && !note) {
+      await db.checkIns.delete([habitId, day]);
+      return;
+    }
+    if (!(await db.habits.get(habitId))) return;
+    const row: CheckIn = { habitId, day, count: value.count, updatedAt: now.toISOString() };
+    if (note) row.note = note;
+    await db.checkIns.put(row);
+  });
 }
 
 export async function getSettings(): Promise<Settings> {

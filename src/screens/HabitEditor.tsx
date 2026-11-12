@@ -5,12 +5,12 @@ import { ArchiveIcon, ChevronLeft, MinusIcon, PlusIcon, RestoreIcon, TrashIcon }
 import { archiveHabit, createHabit, deleteHabit, restoreHabit, updateHabit, type HabitDraft } from '../db/repo';
 import { orderedWeekdays } from '../lib/dates';
 import { HABIT_ICON_IDS, normalizeHabitIcon } from '../lib/icons';
+import { checkHabitDraft, checkTarget, LIMITS, parseWhole } from '../lib/limits';
 import type { Habit, Weekday } from '../lib/types';
 import { useData } from '../ui/data';
 import { WEEKDAY_SHORT } from '../ui/format';
 import { href } from '../ui/router';
 import { HABIT_COLORS, habitVars } from '../ui/color';
-
 
 type ScheduleKind = 'daily' | 'weekdays' | 'perWeek';
 
@@ -58,7 +58,9 @@ function EditorForm({ existing, weekStartsOn }: { existing: Habit | undefined; w
     existing?.schedule.kind === 'weekdays' ? existing.schedule.days : [1, 2, 3, 4, 5],
   );
   const [times, setTimes] = useState(existing?.schedule.kind === 'perWeek' ? existing.schedule.times : 3);
-  const [target, setTarget] = useState(existing?.goal.kind === 'count' ? existing.goal.target : 8);
+  const [targetText, setTargetText] = useState(String(existing?.goal.kind === 'count' ? existing.goal.target : 8));
+  const target = parseWhole(targetText);
+  const targetError = draft.goal.kind === 'count' ? checkTarget(target) : null;
   const [unit, setUnit] = useState(existing?.goal.kind === 'count' ? existing.goal.unit : '');
   const [error, setError] = useState<string | null>(null);
   const kind: ScheduleKind = draft.schedule.kind;
@@ -69,8 +71,6 @@ function EditorForm({ existing, weekStartsOn }: { existing: Habit | undefined; w
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const name = draft.name.trim();
-    if (!name) return setError('Give your habit a name.');
-    if (kind === 'weekdays' && weekdays.length === 0) return setError('Pick at least one day.');
     const final: HabitDraft = {
       ...draft,
       name,
@@ -83,8 +83,10 @@ function EditorForm({ existing, weekStartsOn }: { existing: Habit | undefined; w
       goal:
         draft.goal.kind === 'check'
           ? { kind: 'check' }
-          : { kind: 'count', target: Math.max(1, Math.floor(target) || 1), unit: unit.trim() },
+          : { kind: 'count', target: target ?? 0, unit: unit.trim() },
     };
+    const problem = checkHabitDraft(final);
+    if (problem) return setError(problem);
     if (existing) {
       await updateHabit(existing.id, final);
       window.location.replace(href.detail(existing.id));
@@ -112,7 +114,7 @@ function EditorForm({ existing, weekStartsOn }: { existing: Habit | undefined; w
             <input
               className="input-lg"
               value={draft.name}
-              maxLength={80}
+              maxLength={LIMITS.nameLength}
               placeholder="e.g. Drink water"
               autoFocus={!existing}
               onChange={(e) => {
@@ -251,7 +253,7 @@ function EditorForm({ existing, weekStartsOn }: { existing: Habit | undefined; w
               role="radio"
               aria-checked={draft.goal.kind === 'count'}
               className={draft.goal.kind === 'count' ? 'is-selected' : ''}
-              onClick={() => patch({ goal: { kind: 'count', target, unit } })}
+              onClick={() => patch({ goal: { kind: 'count', target: target ?? 1, unit } })}
             >
               Reach a number
             </button>
@@ -264,15 +266,32 @@ function EditorForm({ existing, weekStartsOn }: { existing: Habit | undefined; w
                   type="number"
                   inputMode="numeric"
                   min={1}
-                  value={target}
-                  onChange={(e) => setTarget(Number(e.target.value))}
+                  max={LIMITS.targetMax}
+                  step={1}
+                  value={targetText}
+                  aria-invalid={targetError !== null}
+                  aria-describedby={targetError ? 'target-error' : undefined}
+                  onChange={(e) => {
+                    setTargetText(e.target.value);
+                    setError(null);
+                  }}
                 />
               </label>
               <label className="field grow">
                 <span className="field-label small">Unit</span>
-                <input value={unit} maxLength={24} placeholder="glasses, pages, minutes…" onChange={(e) => setUnit(e.target.value)} />
+                <input
+                  value={unit}
+                  maxLength={LIMITS.unitLength}
+                  placeholder="glasses, pages, minutes…"
+                  onChange={(e) => setUnit(e.target.value)}
+                />
               </label>
             </div>
+          )}
+          {targetError && (
+            <p id="target-error" className="field-error" role="alert">
+              {targetError}
+            </p>
           )}
         </fieldset>
 
@@ -294,14 +313,14 @@ function EditorForm({ existing, weekStartsOn }: { existing: Habit | undefined; w
                 type="time"
                 aria-label="Reminder time"
                 value={draft.reminderTime}
-                onChange={(e) => e.target.value && patch({ reminderTime: e.target.value })}
+                onChange={(e) => e.target.value && patch({ reminderTime: e.target.value.slice(0, 5) })}
               />
             )}
           </div>
           <p className="muted small">Reminders show while the app is open or running in a background tab.</p>
         </fieldset>
 
-        {error && (
+        {error && error !== targetError && (
           <p className="form-error" role="alert">
             {error}
           </p>
@@ -311,7 +330,7 @@ function EditorForm({ existing, weekStartsOn }: { existing: Habit | undefined; w
           <a className="btn" href={back}>
             Cancel
           </a>
-          <button type="submit" className="btn primary">
+          <button type="submit" className="btn primary" disabled={targetError !== null}>
             {existing ? 'Save changes' : 'Create habit'}
           </button>
         </div>

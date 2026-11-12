@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { setCheckIn } from '../db/repo';
+import { checkCount, LIMITS, parseWhole } from '../lib/limits';
 import { goalTarget } from '../lib/schedule';
 import type { DayKey, Habit } from '../lib/types';
 import { formatDay } from '../ui/format';
@@ -22,7 +23,10 @@ export function DaySheet({
   onClose: () => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const [value, setValue] = useState(count);
+  const [countText, setCountText] = useState(String(count));
+  const value = parseWhole(countText);
+  const countError = habit.goal.kind === 'count' ? checkCount(value) : null;
+  const setValue = (n: number) => setCountText(String(n));
   const [text, setText] = useState(note ?? '');
   const titleId = useId();
   const target = goalTarget(habit.goal);
@@ -33,6 +37,7 @@ export function DaySheet({
   }, []);
 
   const save = async () => {
+    if (value === null || countError) return;
     await setCheckIn(habit.id, day, { count: value, note: text });
     onClose();
   };
@@ -70,15 +75,15 @@ export function DaySheet({
         {habit.goal.kind === 'check' ? (
           <button
             type="button"
-            className={`toggle-done${value >= 1 ? ' is-done' : ''}`}
-            aria-pressed={value >= 1}
+            className={`toggle-done${(value ?? 0) >= 1 ? ' is-done' : ''}`}
+            aria-pressed={(value ?? 0) >= 1}
             style={habitVars(habit.color)}
-            onClick={() => setValue(value >= 1 ? 0 : 1)}
+            onClick={() => setValue((value ?? 0) >= 1 ? 0 : 1)}
           >
             <span className="toggle-done-box">
               <CheckIcon size={18} strokeWidth={2.6} />
             </span>
-            {value >= 1 ? 'Done' : 'Not done'}
+            {(value ?? 0) >= 1 ? 'Done' : 'Not done'}
           </button>
         ) : (
           <div className="count-edit" style={habitVars(habit.color)}>
@@ -86,8 +91,8 @@ export function DaySheet({
               type="button"
               className="stepper-btn big"
               aria-label="Decrease"
-              disabled={value <= 0}
-              onClick={() => setValue(Math.max(0, value - 1))}
+              disabled={value === null || value <= 0}
+              onClick={() => setValue(Math.min(LIMITS.countMax, Math.max(0, (value ?? 1) - 1)))}
             >
               <MinusIcon />
             </button>
@@ -96,18 +101,33 @@ export function DaySheet({
                 type="number"
                 inputMode="numeric"
                 min={0}
-                value={value}
-                onChange={(e) => setValue(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
+                max={LIMITS.countMax}
+                step={1}
+                value={countText}
+                onChange={(e) => setCountText(e.target.value)}
                 aria-label={`Count (${habit.goal.unit || 'times'})`}
+                aria-invalid={countError !== null}
+                aria-describedby={countError ? 'count-error' : undefined}
               />
               <span className="muted">
                 of {target} {habit.goal.unit}
               </span>
             </label>
-            <button type="button" className="stepper-btn big" aria-label="Increase" onClick={() => setValue(value + 1)}>
+            <button
+              type="button"
+              className="stepper-btn big"
+              aria-label="Increase"
+              disabled={value !== null && value >= LIMITS.countMax}
+              onClick={() => setValue(Math.min(LIMITS.countMax, (value ?? 0) + 1))}
+            >
               <PlusIcon />
             </button>
           </div>
+        )}
+        {countError && (
+          <p id="count-error" className="field-error center" role="alert">
+            {countError}
+          </p>
         )}
 
         <label className="field">
@@ -115,7 +135,7 @@ export function DaySheet({
           <textarea
             rows={3}
             value={text}
-            maxLength={2000}
+            maxLength={LIMITS.noteLength}
             placeholder="How did it go?"
             onChange={(e) => setText(e.target.value)}
           />
@@ -125,7 +145,7 @@ export function DaySheet({
           <button type="button" className="btn" onClick={() => ref.current?.close()}>
             Cancel
           </button>
-          <button type="submit" className="btn primary">
+          <button type="submit" className="btn primary" disabled={countError !== null}>
             Save
           </button>
         </div>
