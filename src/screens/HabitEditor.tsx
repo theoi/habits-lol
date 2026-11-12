@@ -167,7 +167,7 @@ function EditorForm({ existing, weekStartsOn }: { existing: Habit | undefined; w
               [
                 ['daily', 'Every day'],
                 ['weekdays', 'Some days'],
-                ['perWeek', 'Times a week'],
+                ['perWeek', 'Per week'],
               ] as const
             ).map(([k, label]) => (
               <button

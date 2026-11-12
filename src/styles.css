@@ -1148,6 +1148,7 @@ textarea {
 
 .segmented button {
   flex: 1;
+  white-space: nowrap;
   min-height: 38px;
   padding: 0 8px;
   border: 0;

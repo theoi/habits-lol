@@ -16,7 +16,13 @@ const NOTES: Record<string, string[]> = {
   walk: ['Along the river, saw two herons', 'Short loop, it was raining', 'Walked to the market instead of driving'],
   workout: ['Leg day. Tough but good.', 'New personal best on rows', 'Easy session, a bit tired'],
   read: ['Finished “The Overstory”', 'Started a new chapter on sleep'],
-  meditate: ['10 minutes, felt calmer afterwards'],
+  meditate: [
+    '10 minutes, felt calmer afterwards',
+    'Mind kept wandering, still sat through it',
+    'Body scan before bed',
+    'Breathing exercise on the train',
+    'Guided session on gratitude',
+  ],
 };
 
 /** Adds a realistic set of habits with about four months of history. */
@@ -38,10 +44,13 @@ export async function seedSampleData(now: Date): Promise<void> {
   ];
 
   const checkIns: CheckIn[] = [];
+  const lastNote = new Map<string, string>();
   const add = (habitId: string, day: DayKey, count: number) => {
     if (count <= 0) return;
     const pool = NOTES[habitId];
-    const note = pool && r() < 0.08 ? pool[Math.floor(r() * pool.length)] : undefined;
+    let note = pool && r() < 0.08 ? pool[Math.floor(r() * pool.length)] : undefined;
+    if (note && note === lastNote.get(habitId)) note = undefined;
+    if (note) lastNote.set(habitId, note);
     checkIns.push({ habitId, day, count, updatedAt: createdAt, ...(note ? { note } : {}) });
   };
 
