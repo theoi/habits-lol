@@ -57,6 +57,33 @@ describe('backup', () => {
     expect(parseBackup(withOrphans)).toEqual({ ok: true, data, skippedCheckIns: 2 });
   });
 
+  const orphan = { habitId: 'deleted', day: '2026-11-10', count: 1, updatedAt: '2026-11-10T20:00:00.000Z' };
+  const addCheckIns = (...rows: unknown[]) => withChange((b) => (b.checkIns as unknown[]).push(...rows));
+
+  it.each([
+    ['an impossible day', addCheckIns({ ...orphan, day: '2026-02-30' }), /checkIns\[2\]\.day/],
+    ['a count given as text', addCheckIns({ ...orphan, count: '1' }), /checkIns\[2\]\.count/],
+    ['a count over the limit', addCheckIns({ ...orphan, count: 1_000_001 }), /checkIns\[2\]\.count/],
+    ['no updatedAt', addCheckIns({ ...orphan, updatedAt: undefined }), /checkIns\[2\]\.updatedAt/],
+    ['an over-long note', addCheckIns({ ...orphan, note: 'x'.repeat(2001) }), /checkIns\[2\]\.note/],
+    ['a habitId that is not text', addCheckIns({ ...orphan, habitId: 7 }), /checkIns\[2\]\.habitId/],
+    ['a duplicate', addCheckIns(orphan, orphan), /same habit and day/],
+  ])('rejects an orphan check-in with %s rather than skipping it', (_, text, message) => {
+    const r = parseBackup(text);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(message);
+  });
+
+  it('rejects a file with check-ins but no habits as not a usable backup', () => {
+    const r = parseBackup(withChange((b) => ((b.habits = []), (b.checkIns = [orphan, { ...orphan, day: '2026-11-11' }]))));
+    expect(r).toEqual({ ok: false, error: 'This file has check-ins but no habits, so it is not a usable backup.' });
+  });
+
+  it('imports an empty backup from an empty app', () => {
+    const r = parseBackup(withChange((b) => ((b.habits = []), (b.checkIns = []))));
+    expect(r).toEqual({ ok: true, data: { settings: data.settings, habits: [], checkIns: [] }, skippedCheckIns: 0 });
+  });
+
   it('still rejects the file when an orphan check-in sits beside other invalid data', () => {
     const bad = withChange((b) => {
       const list = b.checkIns as Record<string, unknown>[];

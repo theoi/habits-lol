@@ -132,17 +132,12 @@ function habit(v: unknown, i: number): Habit {
   };
 }
 
-/** Parses a check-in, or returns null for one whose habit is not in the file. */
-function checkIn(v: unknown, i: number, ids: Set<string>): CheckIn | null {
+function checkIn(v: unknown, i: number): CheckIn {
   const w = `checkIns[${i}]`;
   const o = obj(v, w);
-  const habitId = str(o.habitId, `${w}.habitId`, { max: 100 });
-  // Earlier releases could leave check-ins for deleted habits. They have no
-  // meaning without their habit, so they are skipped rather than failing the file.
-  if (!ids.has(habitId)) return null;
   if (!isDayKey(o.day)) fail(`${w}.day must be a YYYY-MM-DD date`);
   const out: CheckIn = {
-    habitId,
+    habitId: str(o.habitId, `${w}.habitId`, { max: 100 }),
     day: o.day,
     count: int(o.count, `${w}.count`, 0, LIMITS.countMax),
     updatedAt: timestamp(o.updatedAt, `${w}.updatedAt`),
@@ -153,7 +148,7 @@ function checkIn(v: unknown, i: number, ids: Set<string>): CheckIn | null {
 
 /**
  * Validates a backup file's text. Any invalid value rejects the whole file;
- * the only rows left out are check-ins for habits not in the file.
+ * the only rows left out are valid check-ins for habits not in the file.
  */
 export function parseBackup(text: string): ParseResult {
   let raw: unknown;
@@ -175,10 +170,14 @@ export function parseBackup(text: string): ParseResult {
     const habits = o.habits.map(habit);
     const ids = new Set(habits.map((h) => h.id));
     if (ids.size !== habits.length) fail('Two habits share the same id');
-    const parsed = o.checkIns.map((c, i) => checkIn(c, i, ids));
-    const checkIns = parsed.filter((c): c is CheckIn => c !== null);
-    const keys = new Set(checkIns.map((c) => `${c.habitId}|${c.day}`));
-    if (keys.size !== checkIns.length) fail('Two check-ins share the same habit and day');
+    const parsed = o.checkIns.map(checkIn);
+    const keys = new Set(parsed.map((c) => `${c.habitId}|${c.day}`));
+    if (keys.size !== parsed.length) fail('Two check-ins share the same habit and day');
+    // Earlier releases could leave well-formed check-ins for deleted habits. They have
+    // no meaning without their habit, so they are skipped rather than failing the file.
+    const checkIns = parsed.filter((c) => ids.has(c.habitId));
+    if (habits.length === 0 && parsed.length > 0)
+      fail('This file has check-ins but no habits, so it is not a usable backup');
     return {
       ok: true,
       data: { settings: { weekStartsOn: s.weekStartsOn, compact: s.compact ?? false }, habits, checkIns },

@@ -101,3 +101,45 @@ test('imports a backup from before line icons, mapping emoji icons', async ({ pa
   await page.goto('./');
   await expect(page.locator('.habit-row .habit-icon svg')).toHaveCount(2);
 });
+
+test('shows the dialog for every file, even when files are chosen at machine speed', async ({ page }) => {
+  await openFresh(page);
+  await page.goto('./#/settings');
+  const error = page.getByRole('dialog', { name: 'Couldn’t import this file' });
+  const pick = (text: string) =>
+    page.getByTestId('import-file').setInputFiles({ name: 'f.json', mimeType: 'application/json', buffer: Buffer.from(text) });
+
+  await pick('nope');
+  await expect(error).toContainText('not valid JSON');
+  // Hold back this dialog's close event until the next file has been read, as a busy event loop can.
+  type Held = { hold: (e: Event) => void; heldClose?: EventTarget };
+  await page.evaluate(() => {
+    const w = window as unknown as Held;
+    w.hold = (e) => {
+      e.stopImmediatePropagation();
+      w.heldClose = e.target!;
+      window.removeEventListener('close', w.hold, true);
+    };
+    window.addEventListener('close', w.hold, true);
+  });
+  await error.getByRole('button', { name: 'OK' }).click();
+  await pick('{"format":"other"}');
+  await expect(error).toContainText('not a Habits backup');
+  // A dialog removed before its close event fires gets no event at all, so there may be nothing to deliver.
+  await page.evaluate(() => {
+    const w = window as unknown as Held;
+    window.removeEventListener('close', w.hold, true);
+    w.heldClose?.dispatchEvent(new Event('close'));
+  });
+  await expect(error).toContainText('not a Habits backup');
+  await error.getByRole('button', { name: 'OK' }).click();
+  await expect(error).toHaveCount(0);
+
+  // No pause between closing one dialog and choosing the next file.
+  for (let i = 0; i < 30; i++) {
+    await pick(i % 2 ? 'nope' : '{"format":"other"}');
+    await expect(error).toContainText(i % 2 ? 'not valid JSON' : 'not a Habits backup');
+    await error.getByRole('button', { name: 'OK' }).click();
+  }
+  await expect(error).toHaveCount(0);
+});

@@ -135,3 +135,30 @@ test('saving a day in one tab after the habit was deleted in another leaves no o
   const restored = await restoreInFreshProfile(browser, after.path, 0);
   sameData(after.json, restored);
 });
+
+test('rejects a file with check-ins but no habits, or a malformed entry for a deleted habit', async ({ page }) => {
+  await openFresh(page);
+  await page.getByRole('button', { name: 'Try sample habits' }).click();
+  await expect(page.locator('.habit-row').first()).toBeVisible();
+  const before = await exportJson(page);
+  const orphan = { habitId: 'deleted-habit', day: '2026-11-10', count: 1, updatedAt: '2026-11-10T20:00:00.000Z' };
+  const error = page.getByRole('dialog', { name: 'Couldn’t import this file' });
+
+  const cases: [Json, string][] = [
+    [{ ...before.json, habits: [], checkIns: [orphan, { ...orphan, day: '2026-11-11' }] }, 'not a usable backup'],
+    [{ ...before.json, checkIns: [...before.json.checkIns, { ...orphan, day: '2026-02-30' }] }, 'YYYY-MM-DD'],
+    [{ ...before.json, checkIns: [...before.json.checkIns, { ...orphan, count: '1' }] }, 'count'],
+  ];
+  for (const [file, message] of cases) {
+    await page
+      .getByTestId('import-file')
+      .setInputFiles({ name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) });
+    await expect(error).toContainText(message);
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+    await error.getByRole('button', { name: 'OK' }).click();
+    await expect(error).toHaveCount(0);
+  }
+
+  const after = await exportJson(page);
+  sameData(before.json, after.json);
+});

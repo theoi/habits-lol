@@ -8,9 +8,11 @@ import { notificationPermission, requestNotifications } from '../reminders/notif
 import { useData } from '../ui/data';
 import { useToast } from '../ui/toast';
 
+// `id` gives each import its own dialog. A dialog already closed by the previous
+// import cannot show a new one, because `showModal` runs only on mount.
 type ImportState =
-  | { kind: 'confirm'; data: BackupData; skipped: number }
-  | { kind: 'error'; message: string }
+  | { kind: 'confirm'; id: number; data: BackupData; skipped: number }
+  | { kind: 'error'; id: number; message: string }
   | null;
 
 function plural(n: number, one: string, many = `${one}s`): string {
@@ -40,6 +42,7 @@ export function SettingsScreen() {
   const [permission, setPermission] = useState(notificationPermission());
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [importing, setImporting] = useState<ImportState>(null);
+  const importCount = useRef(0);
 
   useEffect(() => {
     void navigator.storage?.persisted?.().then(setPersisted);
@@ -65,10 +68,11 @@ export function SettingsScreen() {
 
   const readImport = async (file: File) => {
     const result = parseBackup(await file.text());
+    const id = ++importCount.current;
     setImporting(
       result.ok
-        ? { kind: 'confirm', data: result.data, skipped: result.skippedCheckIns }
-        : { kind: 'error', message: result.error },
+        ? { kind: 'confirm', id, data: result.data, skipped: result.skippedCheckIns }
+        : { kind: 'error', id, message: result.error },
     );
   };
 
@@ -207,6 +211,7 @@ export function SettingsScreen() {
 
       {importing?.kind === 'confirm' && (
         <ConfirmDialog
+          key={importing.id}
           title="Replace all data?"
           confirmLabel="Replace"
           danger
@@ -241,7 +246,7 @@ export function SettingsScreen() {
         </ConfirmDialog>
       )}
       {importing?.kind === 'error' && (
-        <ConfirmDialog title="Couldn’t import this file" onClose={closeImport(importing)}>
+        <ConfirmDialog key={importing.id} title="Couldn’t import this file" onClose={closeImport(importing)}>
           <p>{importing.message}</p>
           <p className="muted small">Nothing was changed.</p>
         </ConfirmDialog>
